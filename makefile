@@ -2,14 +2,14 @@
 # Makefile for UNIX - unrar
 
 # Linux using GCC
-CXX=c++
+CXX=emcc
 CXXFLAGS=-O2 -Wno-logical-op-parentheses -Wno-switch -Wno-dangling-else
 LIBFLAGS=-fPIC
 DEFINES=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DRAR_SMP
 STRIP=strip
-AR=ar
+AR=emar
 LDFLAGS=-pthread
-DESTDIR=/usr
+DESTDIR=./dest
 
 # Linux using LCC
 #CXX=lcc
@@ -128,6 +128,13 @@ OBJECTS=rar.o strlist.o strfn.o pathfn.o smallfn.o global.o file.o filefn.o filc
 	rijndael.o getbits.o sha1.o sha256.o blake2s.o hash.o extinfo.o extract.o volume.o \
   list.o find.o unpack.o headers.o threadpool.o rs16.o cmddata.o ui.o
 
+WASM_ARGS = \
+        -s WASM=1 \
+		-s INVOKE_RUN=0 \
+		-s INITIAL_MEMORY=268435456 \
+		-s EXPORTED_RUNTIME_METHODS="[FS, cwrap, writeAsciiToMemory]" \
+		-s EXPORTED_FUNCTIONS="[_main]"
+
 .cpp.o:
 	$(COMPILE) -D$(WHAT) -c $<
 
@@ -157,8 +164,7 @@ lib:	WHAT=RARDLL
 lib:	CXXFLAGS+=$(LIBFLAGS)
 lib:	clean $(OBJECTS) $(LIB_OBJ)
 	@rm -f libunrar.*
-	$(LINK) -shared -o libunrar.so $(LDFLAGS) $(OBJECTS) $(LIB_OBJ)
-	$(AR) rcs libunrar.a $(OBJECTS) $(LIB_OBJ)
+	$(AR) -rcs libunrar.a $(OBJECTS) $(LIB_OBJ)
 
 install-unrar:
 			install -D unrar $(DESTDIR)/bin/unrar
@@ -172,3 +178,6 @@ install-lib:
 
 uninstall-lib:
 		rm -f $(DESTDIR)/lib/libunrar.so
+
+wasm: lib
+	emcc $(WASM_ARGS) -I./ -L./ -lunrar --bind -o dist/unrar.js ./wasm/main.cpp
