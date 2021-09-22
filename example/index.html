@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Emscripten-Generated Code</title>
+  </head>
+  <body>
+
+    <div class="emscripten">
+      <progress value="0" max="100" id="progress" hidden=1></progress>
+    </div>
+
+    <input id="file" type="file" />
+
+    
+    <div class="emscripten_border">
+      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+    </div>
+    <textarea id="output" rows="8"></textarea>
+
+    <script type='text/javascript'>
+      var statusElement = document.getElementById('status');
+      var progressElement = document.getElementById('progress');
+      var spinnerElement = document.getElementById('spinner');
+
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function() {
+          var element = document.getElementById('output');
+          if (element) element.value = ''; // clear browser cache
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            // These replacements are necessary if you render to raw HTML
+            //text = text.replace(/&/g, "&amp;");
+            //text = text.replace(/</g, "&lt;");
+            //text = text.replace(/>/g, "&gt;");
+            //text = text.replace('\n', '<br>', 'g');
+            console.log(text);
+            if (element) {
+              element.value += text + "\n";
+              element.scrollTop = element.scrollHeight; // focus on bottom
+            }
+          };
+        })(),
+        printErr: function(text) {
+          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+          console.error(text);
+        },
+      };
+
+      const download = (url, fileName) => {
+        let u
+        if (url.BYTES_PER_ELEMENT !== undefined) {
+          u = URL.createObjectURL(new Blob([url]))
+        } else {
+          u = url
+        }
+        const a = document.createElement('a')
+         a.download = fileName
+        a.href = u
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }
+
+      const input = document.getElementById('file')
+      input.onchange = async e => {
+        const file = e.target.files[0]
+        const data = new Uint8Array(await file.arrayBuffer())
+
+        let archivePath = 'archive.rar'
+        let unarchivedPath = 'out/'
+
+        let ret = Module.FS.writeFile(archivePath, data)
+        console.log({ret})
+
+        const archivePathPtr = Module._malloc(archivePath.length)
+        const unarchivedPathPtr = Module._malloc(unarchivedPath.length)
+        Module.writeAsciiToMemory(archivePath, archivePathPtr)
+        Module.writeAsciiToMemory(unarchivedPath, unarchivedPathPtr)
+
+        ret = Module.__unrar_unarchive(archivePathPtr, unarchivedPathPtr)
+        console.log({ret})
+
+        const dir = Module.FS.open('out/')
+        const files = dir.node.contents
+      }
+    </script>
+    <script async type="text/javascript" src="unrar.js"></script>
+  </body>
+</html>
